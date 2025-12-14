@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WeronOS v1.0 - Game Repository</title>
+    
+    <style>
+        body {
+            background-color: #000; /* ЧИСТЫЙ ЧЕРНЫЙ */
+            color: #00ff00; /* Классический зеленый текст консоли */
+            font-family: 'Courier New', Courier, monospace; /* Моноширинный шрифт */
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            position: relative; 
+            overflow: hidden; 
+        }
+
+        /* Стиль для Canvas, который создает эффект Matrix */
+        #matrix-rain {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1; /* Фон находится за контентом */
+        }
+
+        .terminal-window {
+            width: 800px;
+            max-width: 100%;
+            border: 2px solid #00ff00;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.7); 
+            z-index: 10; 
+        }
+
+        .terminal-header {
+            background-color: #000;
+            padding: 5px 10px;
+            font-weight: bold;
+            color: #fff;
+            border-bottom: 2px solid #00ff00;
+        }
+
+        .terminal-body {
+            background-color: rgba(10, 10, 10, 0.9); /* Полупрозрачный фон для читаемости */
+            padding: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+            backdrop-filter: blur(1px); 
+        }
+
+        .console-line {
+            margin: 0;
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+
+        .command {
+            color: #4CAF50; 
+        }
+
+        .success {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        .error {
+            color: #FF5252;
+        }
+        
+        .warning {
+            color: #FFD700; /* Желтый для предупреждений/статуса */
+        }
+        
+        .game-entry {
+            border-top: 1px dashed #333; 
+            padding: 15px 0;
+            margin-bottom: 10px;
+        }
+
+        .game-title {
+            font-size: 1.3em;
+            color: #fff; 
+            font-weight: bold;
+            margin-bottom: 5px !important;
+        }
+
+        /* Стиль для кнопки "скачать" */
+        .terminal-button {
+            display: inline-block;
+            text-decoration: none;
+            padding: 10px 20px;
+            margin-top: 15px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            
+            border-radius: 0; 
+            border: 1px solid #00ff00;
+            background: rgba(0, 255, 0, 0.1); 
+            color: #00ff00; 
+        }
+
+        .terminal-button:hover {
+            background: rgba(0, 255, 0, 0.3); 
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        .terminal-button.disabled {
+            background-color: #333;
+            color: #777;
+            cursor: not-allowed;
+            border-color: #777;
+            box-shadow: none;
+        }
+
+        .prompt {
+            color: #FFD700; 
+        }
+
+        /* Курсор - мигающий эффект */
+        #prompt-cursor {
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            from, to { color: transparent }
+            50% { color: #00ff00 }
+        }
+    </style>
+    
+</head>
+<body>
+    <canvas id="matrix-rain"></canvas>
+
+    <div class="terminal-window">
+        <div class="terminal-header">WeronOS v1.0: /usr/repos/compiled_games/</div>
+        <div class="terminal-body" id="console">
+            <p class="console-line">>$ WeronOS Repository Initialized.</p>
+            <p class="console-line">>$ Welcome, User. Fetching available executables...</p>
+            
+            <p class="console-line command">>$ list_projects --compiled</p>
+            
+            <div class="game-entry">
+                <p class="console-line success">---</p>
+                <p class="console-line game-title prompt">Игра: Weron Collection (Steam-like display)</p>
+                <p class="console-line">  Status: <span class="success">[READY]</span></p>
+                <p class="console-line">  File: Weron_Collection.exe</p>
+                
+                <a href="https://drive.google.com/uc?export=download&id=1XVpGDOLvhBMsrV2X7N5tB2IUGpdCQWjq" download class="terminal-button">
+                    <span class="prompt">>$</span> download Weron_Collection.exe
+                </a>
+                
+                <p class="console-line success">---</p>
+            </div>
+            
+            <div class="game-entry">
+                <p class="console-line warning">---</p>
+                <p class="console-line game-title prompt">Проект в разработке</p>
+                <p class="console-line">  Status: <span class="warning">[В РАЗРАБОТКЕ]</span></p>
+                <p class="console-line">  File: /dev/null</p>
+                
+                <a href="#" class="terminal-button disabled">
+                    <span class="prompt">>$</span> download
+                </a>
+                
+                <p class="console-line warning">---</p>
+            </div>
+
+            <p class="console-line prompt" id="prompt-cursor">></p>
+            
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('matrix-rain');
+        const ctx = canvas.getContext('2d');
+
+        // Установка размеров Canvas на размер окна
+        let W = window.innerWidth;
+        let H = window.innerHeight;
+        canvas.width = W;
+        canvas.height = H;
+
+        // Символы, которые будут падать
+        const matrixChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*()_+=-[]{};:<>,./?|";
+        
+        // Размер шрифта и количество колонок
+        const fontSize = 16;
+        const columns = Math.floor(W / fontSize);
+
+        // Создаем массив для отслеживания Y-координат каждой колонки
+        const drops = new Array(columns).fill(1); 
+
+        function drawMatrix() {
+            // 1. Создание "хвоста" (Trailing effect)
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+            ctx.fillRect(0, 0, W, H);
+
+            // 2. Установка стилей для символов
+            ctx.fillStyle = '#00ff00'; 
+            ctx.font = fontSize + 'px monospace';
+
+            // 3. Рисование падающих символов
+            for (let i = 0; i < drops.length; i++) {
+                const text = matrixChars.charAt(Math.floor(Math.random() * matrixChars.length));
+                
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+                if (drops[i] * fontSize > H && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                
+                drops[i]++;
+            }
+            
+            requestAnimationFrame(drawMatrix);
+        }
+
+        // Запуск анимации
+        drawMatrix();
+
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            W = window.innerWidth;
+            H = window.innerHeight;
+            canvas.width = W;
+            canvas.height = H;
+            const columns = Math.floor(W / fontSize);
+            drops.length = columns;
+            drops.fill(1); 
+        });
+    </script>
+</body>
+</html>
